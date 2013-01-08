@@ -95,7 +95,11 @@ do_file () {
 
     # Copy file to tmp file and optimize in place
     cp -f "$1" $TMPF
-    
+    # Get basic information in order to preserve it once optimized
+    p=$( stat --format=%a $1 )
+	  u=$( stat -c %U $1  )
+   	g=$( stat -c %G $1  )
+
     # Try mime identifying
     mime=`file -b --mime-type $1 2>/dev/null`
     if [ $? -eq 0 ]
@@ -139,6 +143,9 @@ do_file () {
     let REDUCED=$BEFORE-$AFTER
     if [ $AFTER -lt $BEFORE ]; then
       cp -f $TMPF $1
+      # Preserve original basic information
+    	chmod $p $1
+    	chown $u:$g $1
       echo "$1 reduced $REDUCED bytes to $AFTER bytes"
     else
       echo "$1 unchanged at $BEFORE bytes"
