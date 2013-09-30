@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Simple bash script to use find to recursively locate JPEG/PNG files
 # and process them with jpegtran, jfifremove, optipng, advpng and pngout 
@@ -13,46 +13,57 @@
 # For more information and usage examples, see:
 # http://lyncd.com/2009/03/imgopt-lossless-optimize-png-jpeg/
 
+# Global stat vars
+STAT_FILE_COUNT=0
+STAT_FILE_SIZE_START=0
+STAT_FILE_SIZE_END=0
+
+# The variable which holds the path to the temporary file on which the actual
+# processing is done.
+TMPF=""
+
+# Do we have a tty?
 interactive=0
 tty -s &> /dev/null && interactive=1
 
 # Verbose output if interactive
 verbose() {
-    if [ "${interactive}" -eq "1" ]
-    then
-        echo "${1}";
+    if [[ $interactive -eq 1 ]]; then
+        echo "$1";
     fi
 }
 
 # Usage help text
 usage () {
-  echo "Usage: imgopt [FILE/DIR] [FILE/DIR] [FILE/DIR] ..."
-  echo
-  echo "Optimizes any combination of files and directories. Directories are searched"
-  echo "recursively, and all image files in any subdirectories are optimized."
-  echo
-  echo "Examples:"
-  echo
-  echo " imgopt .      Optimize all images in current directory and any subdirectories"
-  echo " imgopt *.png  Optimize all pngs in current directory only"
-  echo
+  cat - <<EOF
+Usage: imgopt [FILE/DIR] [FILE/DIR] [FILE/DIR] ...
+
+Optimizes any combination of files and directories. Directories are searched
+recursively, and all image files in any subdirectories are optimized.
+
+Examples:
+
+ imgopt .      Optimize all images in current directory and any subdirectories
+ imgopt *.png  Optimize all pngs in current directory only
+
+EOF
 }
 
 check_bin() {
   # $1 is the binary
   # $2 is the text to print if missing
-  which $1 &> /dev/null
-  if [ $? -ne 0 ]; then
-    echo -e $2
+  which "$1" &> /dev/null
+  if [[ $? -ne 0 ]]; then
+    echo -e "$2"
     exit 1
   fi
   return 0
 }
 
 do_stats () {
-  STAT_FILE_SIZE_DIFF=$((STAT_FILE_SIZE_START-STAT_FILE_SIZE_END))
-  STAT_FILE_SIZE_DIFF_PERCENT=$((STAT_FILE_SIZE_DIFF*100/STAT_FILE_SIZE_START))
-  echo "I processed $STAT_FILE_COUNT files saving $STAT_FILE_SIZE_DIFF bytes ( $STAT_FILE_SIZE_DIFF_PERCENT % )"
+  local stat_file_size_diff=$((STAT_FILE_SIZE_START-STAT_FILE_SIZE_END))
+  local stat_file_size_diff_percent=$((stat_file_size_diff*100/STAT_FILE_SIZE_START))
+  echo "I processed $STAT_FILE_COUNT files saving $stat_file_size_diff bytes ( $stat_file_size_diff_percent % )"
 }
 
 # Optimize PNG file in place
@@ -75,10 +86,10 @@ do_png () {
   # pngout is available here (binaries only):
   # http://www.jonof.id.au/index.php?p=kenutils
   verbose "Optimizing with pngout..."
-  pngout "$1" $TMPF -q -y
+  pngout "$1" "$TMPF" -q -y
   # Sometimes (not always) pngout appends ".PNG" to output filename
-  if [ -f "$TMPF.PNG" ]; then
-    mv -f $TMPF.PNG $TMPF
+  if [[ -f ${TMPF}.PNG ]]; then
+    mv -f "${TMPF}.PNG" "$TMPF"
   fi
 
   return 0
@@ -88,17 +99,20 @@ do_png () {
 # (edit here to add/remove JPEG optimizing steps or change parameters)
 do_jpeg () {
   # $1 is filename
-  TMPJ=`mktemp -t tmp.XXXXXX` || return 1
+  local tmp_jpeg=$(mktemp -t tmp.XXXXXX) || return 1
 
   # jpegtran is part of libjpeg (almost surely already on your system).
   # If not, it's here:
   # http://www.ijg.org/
   verbose "Optimizing with jpegtran..."
-  jpegtran -copy none -optimize -outfile $TMPJ "$1" && mv -f $TMPJ "$1"
+  jpegtran -copy none -optimize -outfile "$tmp_jpeg" "$1" && mv -f "$tmp_jpeg" "$1"
 
   # jfifremove is included with this script, be sure to compile and install
   verbose "Optimizing with jfifremove..."
-  jfifremove < "$1" > $TMPJ && mv -f $TMPJ "$1"
+  jfifremove < "$1" > "$tmp_jpeg" && mv -f "$tmp_jpeg" "$1"
+  
+  # remove the temp file
+  rm -f "$tmp_jpeg"
 
   return 0
 }
@@ -107,33 +121,22 @@ do_jpeg () {
 do_file () {
   STAT_FILE_COUNT=$((STAT_FILE_COUNT+1))
   # $1 is name of file
-  if [ -w "$1" ]; then
+  if [[ -w $1 ]]; then
 
     # Copy file to tmp file and optimize in place
-    cp -f "$1" $TMPF
+    cp -f "$1" "$TMPF"
     # Get basic information in order to preserve it once optimized
-    stat --version &>/dev/null
-    if [[ "${?}" -eq "0" ]]
-    then
-        p=$(stat --format=%a $1)
-        u=$(stat -c %U $1)
-        g=$(stat -c %G $1)
-    else
-        p=$(stat -f %p $1)
-        u=$(stat -f %Su $1)
-        g=$(stat -f %Sg $1)
-    fi
+    IFS=' ' read -u 3 access username groupname 3< <(stat -c '%a %U %G' "$1")
 
     # Try mime identifying
-    mime=`file -b --mime-type $1 2>/dev/null`
-    if [ $? -eq 0 ]
-    then
+    local mime=$(file -b --mime-type "$1" 2>/dev/null)
+    if [[ $? -eq 0 ]]; then
       case "$mime" in
         image/png )
-        do_png $TMPF
+        do_png "$TMPF"
         ;;
         image/jpeg )
-        do_jpeg $TMPF
+        do_jpeg "$TMPF"
         ;;
         * )
         echo "$1 could not be identified, please verify the type!"
@@ -144,13 +147,13 @@ do_file () {
       # Fall back to file extension
       case "$1" in
         *.[Pp][Nn][Gg] )
-        do_png $TMPF
+        do_png "$TMPF"
         ;;
         *.[Jj][Pp][Ee][Gg] )
-        do_jpeg $TMPF
+        do_jpeg "$TMPF"
         ;;
         *.[Jj][Pp][Gg] )
-        do_jpeg $TMPF
+        do_jpeg "$TMPF"
         ;;
         * )
         echo "$1 could not be identified, please rename to .jpg or .png"
@@ -160,19 +163,19 @@ do_file () {
     fi
     
     # If optimized file is smaller, copy it over original
-    BEFORE=`ls -la "$1" | awk '{print $5}'`
-    STAT_FILE_SIZE_START=$((STAT_FILE_SIZE_START+BEFORE))
-    AFTER=`ls -la $TMPF | awk '{print $5}'`
-    STAT_FILE_SIZE_END=$((STAT_FILE_SIZE_END+AFTER))
-    let REDUCED=$BEFORE-$AFTER
-    if [ $AFTER -lt $BEFORE ]; then
-      cp -f $TMPF $1
+    local size_before=$(stat -c '%s' "$1")
+    STAT_FILE_SIZE_START=$((STAT_FILE_SIZE_START+size_before))
+    local size_after=$(stat -c '%s' "$TMPF")
+    STAT_FILE_SIZE_END=$((STAT_FILE_SIZE_END+size_after))
+    local bytes_reduced=$((size_before-size_after))
+    if [[ $size_after -lt $size_before ]]; then
+      cp -f "$TMPF" "$1"
       # Preserve original basic information
-    	chmod $p $1
-    	chown $u:$g $1
-      echo "$1 reduced $REDUCED bytes to $AFTER bytes"
+      chmod $access "$1"
+      chown $username:$groupname "$1"
+      echo "$1 reduced $bytes_reduced bytes to $size_after bytes"
     else
-      echo "$1 unchanged at $BEFORE bytes"
+      echo "$1 unchanged at $size_before bytes"
     fi
 
     return 0
@@ -185,24 +188,13 @@ do_file () {
 # Optimize recursively all files in a directory
 do_dir () {
   # $1 is name of dir
-  RETURNVAL=""
-  IFS=$'\n'
-  for x in `find "$1" -type f -iregex '.*\.[jp][pn]g$' -o -iregex '.*\.jpeg$'`; do
-    do_file $x
-    if [ "$RETURNVAL" != "0" ]; then
-      RETURNVAL=$?
-    fi
-  done
-  if [ "$RETURNVAL" == "" ]; then
-    RETURNVAL=0
-  fi
-  return $RETURNVAL
+  local ret_val=0
+  while IFS= read -r -u 3 -d $'\0' file; do
+    do_file "$file"
+    ret_val=$?
+  done 3< <(find "$1" -type f \( -iregex '.*\.[jp][pn]g$' -o -iregex '.*\.jpeg$' \) -print0)
+  return $ret_val
 }
-
-# Global stat vars
-STAT_FILE_COUNT=0
-STAT_FILE_SIZE_START=0
-STAT_FILE_SIZE_END=0
 
 # Sanity check binaries
 check_bin advpng     "advpng, part of AdvanceCOMP, is available here:\nhttp://advancemame.sourceforge.net/comp-download.html"
@@ -212,26 +204,22 @@ check_bin jpegtran   "jpegtran is part of libjpeg (almost surely already on your
 check_bin jfifremove "jfifremove is included with this script, be sure to compile and install"
 
 # If run with args, optimize these files or recursively all files in a dir
-if [[ -n "$1" && "$1" != '-h' && "$1" != '--help' ]]; then
-  TMPF=`mktemp tmp.XXXXXX` || exit 1
+if [[ $1 && $1 != '-h' && $1 != '--help' ]]; then
+  TMPF=$(mktemp tmp.XXXXXX) || exit 1
   RETURNVAL=1
-  until [ -z "$1" ]; do
-    if [ -d "$1" ]; then
+  until [[ -z $1 ]]; do
+    if [[ -d $1 ]]; then
       do_dir "$1"
-      if [ "$RETURNVAL" != "0" ]; then
-        RETURNVAL=$?
-      fi
-    elif [ -f "$1" ]; then
+      RETURNVAL=$?
+    elif [[ -f $1 ]]; then
       do_file "$1"
-      if [ "$RETURNVAL" != "0" ]; then
-        RETURNVAL=$?
-      fi
+      RETURNVAL=$?
     else
-      echo "$1 is neither a file nor directory, skipping"
+      echo "$1 is neither a file nor a directory, skipping"
     fi
     shift
   done
-  rm -f $TMPF
+  rm -f "$TMPF"
   do_stats
   exit $RETURNVAL
 # If run without args, print usage help
