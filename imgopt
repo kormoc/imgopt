@@ -266,7 +266,7 @@ do
     usage
     exit
   fi
-  TMPF=$(mktemp imgopt.tmp.XXXXXX)
+  TMPF=$(mktemp -t imgopt.tmp.XXXXXX)
   RETURNVAL=1
   if [[ -d "${arg}" ]]
   then
