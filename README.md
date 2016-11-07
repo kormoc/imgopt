@@ -6,8 +6,8 @@ imgopt README
 # For more information and usage examples, see:
 # http://lyncd.com/2009/03/imgopt-lossless-optimize-png-jpeg/
 
-The included bash script imgopt uses find to recursively locate JPEG/PNG 
-files and process them with jpegtran, jfifremove, optipng, advpng and pngout, 
+The included bash script imgopt uses find to recursively locate JPEG/PNG
+files and process them with jpegtran, jfifremove, optipng, advpng and pngout,
 using settings to losslessly minimize file size and strip all metadata headers.
 
 So, you can easily optimize every image in your website ("imgopt htdocs"), just
@@ -21,7 +21,7 @@ The script is commented to make it easy for you to edit if you would like to
 customize the helper programs used, or their runtime options.
 
 By default, all image transformations are lossless. (Stripping of metadata is,
-of course, not reversible.) But, there's always the possibility of bugs, and 
+of course, not reversible.) But, there's always the possibility of bugs, and
 I'm not the author of any of the helper programs used, so I strongly suggest
 that you not run this script on your only copy of a file! Use at your own risk.
 
@@ -37,9 +37,9 @@ compared what it does to the JFIF segment format standard, fixed a few small
 errors and named it jfifremove. I've tested it thoroughly as it is used in this
 script -- deleting the JFIF segment from files that already have had all other
 optional headers stripped by jpegtran. I have *not* tested it thoroughly for
-standalone use (i.e. with files containing thumbnails, EXIF data) so I cannot 
+standalone use (i.e. with files containing thumbnails, EXIF data) so I cannot
 recommend you use it on its own on JPEG files in the wild. This is just FYI -- I
-have no reason to believe that it *isn't* OK for standalone use; I'm just 
+have no reason to believe that it *isn't* OK for standalone use; I'm just
 telling you that I haven't tested it that way, so you should use caution.
 
 ------------
@@ -60,7 +60,7 @@ Installation
    you can edit imgopt and delete/comment out the line that calls jfifremove.)
 
 3. Install jpegtran (part of libjpeg so very likely already installed),
-   optipng and advpng (part of AdvanceCOMP) or comment out any of these that 
+   optipng and advpng (part of AdvanceCOMP) or comment out any of these that
    you prefer not to use. If you're on Linux, you'll likely use your package
    manager to install these (i.e. "apt-get install optipng advancecomp"). On my
    Mac, I've installed them all from source and they're all very quick
@@ -83,8 +83,3 @@ Examples:
 
  imgopt .      Optimize all images in current directory and any subdirectories
  imgopt *.png  Optimize all pngs in current directory only
-
-
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/kormoc/imgopt/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
-
